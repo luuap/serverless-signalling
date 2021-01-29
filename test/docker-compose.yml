@@ -1,0 +1,7 @@
+version: "3.8"
+services:
+  redis:
+    image: redis:rc-alpine
+    container_name: redis-server
+    ports: 
+      - "6379:6379"

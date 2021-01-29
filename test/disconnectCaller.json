@@ -1,0 +1,9 @@
+{
+  "requestContext": {
+    "routeKey": "$disconnect",
+    "connectionId": "0",
+    "connectedAt": "0",
+    "domainName": "abcdefg123.execute-api.us-east-1.amazonaws.com"
+  },
+  "body": "{\"message\": \"Disconnect\"}" 
+}
