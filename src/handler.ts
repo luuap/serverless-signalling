@@ -11,7 +11,7 @@ import { middyfy } from '@libs/lambda';
 import schema from './schema';
 
 const { REDIS_PORT, REDIS_HOST, REDIS_PASSWORD, AWS_REGION } = process.env;
-const EXPIRE_TIME = 120; // seconds before redis key will expire
+const EXPIRE_TIME = 80; // seconds before redis key will expire
 
 // TODO: investigate the behavior of redis client when lambda is frozen to implement connection caching in between invocations
 
@@ -56,7 +56,7 @@ const handler: ValidatedEventAPIGatewayProxyEvent<typeof schema> = async (event)
 
     await redis.multi()
       .rpush(`rooms:${roomId}:callee`, connectionId)
-      .rpush(`clients:${connectionId}:consumer`, clientId)  // save the client id because we will have a blocking call
+      .rpush(`clients:${connectionId}:consumer`, clientId)  // save the client id because we will have a blocking call TODO should be a set
       .expire(`rooms:${roomId}:callee`, EXPIRE_TIME)
       .expire(`clients:${connectionId}:consumer`, EXPIRE_TIME)
       .exec()
@@ -181,32 +181,39 @@ const sendCallbackMessage = async (context: { connectionId: string, stage: strin
   );
 
   // Make sure the lambda has permission Allow: execute-api:ManageConnections on arn:aws:execute-api{region}:{account-id}:{api-id}:{stage}/POST/@connections/*
-  await apiGatewayManagementApi.send(command)
-    .catch(error => {
+  return apiGatewayManagementApi.send(command)
+    .catch((error) => {
       // might get GoneException when ice negotiation finishes without using up all candidates, thus client closes connection before we can send this last message
       console.log(`Error sending message: ${message}`, error);
-    })
-    .finally(() => {
+      throw error;
+    }).finally(() => {
       apiGatewayManagementApi.destroy();
     });
 }
 
 // reads batches of data in a stream
-// this is recursive and halts when client is unblocked
+// halts when client is unblocked
 const readStreamBlocking = async (redis: Redis.Redis, streamKey: string, entryId: string, cb: (...args: any[]) => any) => {
 
-  // read the old entries
-  const batch = await redis.xread('BLOCK', 0, 'STREAMS', streamKey, entryId);
+  let latestEntryId = entryId;
+  let batch = await redis.xread('BLOCK', 0, 'STREAMS', streamKey, latestEntryId);
 
-  if (batch !== null) { // null happens when redis client connection is stopped
-    const all = batch[0][1]; // array of [id, [field, value]] 
-    const latestEntryId = all[all.length - 1][0];
-    const messages = all.map((streamData) => {
-      return JSON.parse(streamData[1][1]);
-    });
+  // null happens when redis client connection is stopped or unblocked
+  while (batch !== null) { 
+    const entries = batch[0][1]; // array of [id, [field, value]] 
+    latestEntryId = entries[entries.length - 1][0];
+    const messages = entries.map((streamData) => JSON.parse(streamData[1][1]));
 
-    await cb(JSON.stringify(messages));
-    await readStreamBlocking(redis, streamKey, latestEntryId, cb);
+    try {
+      await cb(JSON.stringify(messages));
+    } catch (error) {
+      // just log the error and return
+      console.log(error);
+      return Promise.resolve();
+    }
+
+    batch = await redis.xread('BLOCK', 0, 'STREAMS', streamKey, latestEntryId);
+
   }
 }
 
