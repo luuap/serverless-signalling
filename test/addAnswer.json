@@ -1,9 +1,0 @@
-{
-  "requestContext": {
-    "routeKey": "addAnswer",
-    "connectionId": "1",
-    "connectedAt": "0",
-    "domainName": "abcdefg123.execute-api.us-east-1.amazonaws.com"
-  },
-  "body": "{\"roomId\":0,\"answer\":{\"type\":\"callee\",\"sdp\":\"answer\"}}"
-}
