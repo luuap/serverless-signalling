@@ -23,7 +23,7 @@ A WebRTC signalling service for a simple messaging app using AWS Lambda and Redi
 4. Deploy API
 
 ## Usage
-See [@luuap/rtc-demo](https://github.com/luuap/rtc-demo)
+See [luuap/webrtc-demo](https://github.com/luuap/webrtc-demo)
 
 ---
 
